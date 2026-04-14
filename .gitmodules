@@ -1,0 +1,3 @@
+[submodule "crafter"]
+	path = crafter
+	url = https://github.com/warm-swarm/crafter.git
