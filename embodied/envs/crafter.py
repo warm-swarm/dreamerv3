@@ -1,4 +1,11 @@
 import json
+import pathlib
+import sys
+
+# Use bundled crafter package instead of .env one
+_crafter_root = str(pathlib.Path(__file__).resolve().parent.parent.parent / 'crafter')
+if _crafter_root not in sys.path:
+  sys.path.insert(0, _crafter_root)
 
 import crafter
 import elements
