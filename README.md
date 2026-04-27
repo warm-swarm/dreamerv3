@@ -110,6 +110,67 @@ Scalar metrics are also writting as JSONL files.
 - To continue stopped training runs, simply run the same command line again and
   make sure that the `--logdir` points to the same directory.
 
+# Texture sweep (Crafter robustness experiment)
+
+Evaluate a trained Dreamer agent across the 108 HSV-perturbed texture
+variants of Crafter. See `experiment_design.md` for the experiment spec.
+
+Training a treatment agent with per-episode texture randomisation:
+
+```bash
+python dreamerv3/main.py --logdir ~/logdir/dreamer/{timestamp} \
+  --configs crafter size25m texture_random
+```
+
+The `texture_random` config entry sets `env.crafter.texture_variant=train_pool`
+and `env.crafter.texture_seed=42` on top of the standard crafter stack. The
+baseline is trained without this entry.
+
+### Smoke test (run first against the real checkpoint)
+
+```bash
+python -m embodied.run.eval_texture_sweep \
+  --from-checkpoint /path/to/baseline/ckpt \
+  --outdir /tmp/smoke \
+  --world-seed 999 \
+  --variant-ids 0,53,107 \
+  --episodes-per-variant 2 \
+  --envs 1 \
+  --configs crafter size25m
+```
+
+(Pass whatever `--configs ...` stack was used to train the checkpoint —
+the sweep must instantiate an agent with the same architecture.)
+
+Expected: `/tmp/smoke/sweep_results.jsonl` with six rows (3 variants × 2
+episodes) and `/tmp/smoke/sweep_summary.json` with the run metadata.
+Runtime: a few minutes.
+
+### Full sweep
+
+```bash
+python -m embodied.run.eval_texture_sweep \
+  --from-checkpoint /path/to/ckpt \
+  --outdir /path/to/outdir \
+  --world-seed <int> \
+  --variant-ids 0-107 \
+  --episodes-per-variant 20 \
+  --envs 4 \
+  --configs crafter size25m
+```
+
+`--episodes-per-variant` must be divisible by `--envs` (paired-seed invariance
+— each worker runs the same number of episodes). `--variant-ids` accepts
+comma-separated ints (`0,53,107`), ranges (`0-107`), and the strings
+`train_pool` / `test_pool`.
+
+### Analysis
+
+The sweep JSONL files are consumed by scripts under `crafter/analysis/`:
+`plot_heatmap.py`, `compute_pool_aggregates.py`, `plot_b_vs_t.py`,
+`achievement_breakdown.py`, `paired_test.py`. Each is runnable
+standalone — see the script's `--help`.
+
 # Disclaimer
 
 This repository contains a reimplementation of DreamerV3 based on the open

@@ -15,9 +15,22 @@ import numpy as np
 
 class Crafter(embodied.Env):
 
-  def __init__(self, task, size=(64, 64), logs=False, logdir=None, seed=None):
+  def __init__(
+      self, task, size=(64, 64), logs=False, logdir=None, seed=None,
+      texture_variant=None, texture_seed=None):
     assert task in ('reward', 'noreward')
-    self._env = crafter.Env(size=size, reward=(task == 'reward'), seed=seed)
+    # Config-system sentinels: 'none' and -1 map to None (legacy / auto).
+    # Pool strings pass through; numeric strings become ints.
+    if isinstance(texture_variant, str):
+      if texture_variant == 'none':
+        texture_variant = None
+      elif texture_variant not in ('train_pool', 'test_pool'):
+        texture_variant = int(texture_variant)
+    if isinstance(texture_seed, int) and texture_seed < 0:
+      texture_seed = None
+    self._env = crafter.Env(
+        size=size, reward=(task == 'reward'), seed=seed,
+        texture_variant=texture_variant, texture_seed=texture_seed)
     self._logs = logs
     self._logdir = logdir and elements.Path(logdir)
     self._logdir and self._logdir.mkdir()
@@ -91,6 +104,7 @@ class Crafter(embodied.Env):
         'episode': self._episode,
         'length': length,
         'reward': round(reward, 1),
+        'texture_variant': self._env.current_variant_id,
         **{f'achievement_{k}': v for k, v in info['achievements'].items()},
     }
     filename = self._logdir / 'stats.jsonl'

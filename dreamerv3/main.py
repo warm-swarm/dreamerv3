@@ -240,6 +240,8 @@ def make_env(config, index, **overrides):
   kwargs.update(overrides)
   if kwargs.pop('use_seed', False):
     kwargs['seed'] = hash((config.seed, index)) % (2 ** 32 - 1)
+  if kwargs.get('texture_seed', -1) > 0:
+    kwargs['texture_seed'] = kwargs['texture_seed'] + index
   if kwargs.pop('use_logdir', False):
     kwargs['logdir'] = elements.Path(config.logdir) / f'env{index}'
   env = ctor(task, **kwargs)
