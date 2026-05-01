@@ -7,11 +7,17 @@ Find the original readme below.
 
 Steps to replicate the experiment artefacts:
 
-- `baseline_heatmap.pdf`, `treatment_heatmap.pdf` — mean return per (hue, sat) cell
-- `pool_aggregates.csv` — per-(condition, pool) means with 95% bootstrap CIs and paired-diff rows
-- `b_vs_t.pdf` — baseline vs treatment line plot across train/test pools
-- `achievement_breakdown.csv` — per-achievement success rate by condition × pool, plus Crafter score
+- `baseline_heatmap.pdf`, `treatment_heatmap.pdf` — mean return per (hue, sat) cell, with the per-cell value annotated on each square (white text on dark cells, black on bright)
+- `pool_aggregates.csv` — per-(condition, pool) means with 95% bootstrap CIs and paired-diff rows. Pools include `variant_0`, `train`, `test`. When a random sweep is supplied, three `condition=random` rows are appended.
+- `b_vs_t.pdf` — baseline vs treatment line plot across `clean` (variant 0), `train`, and `test` pools, with shaded 95% CIs. When a random sweep is supplied, a dashed `random policy` floor line is overlaid.
+- `achievement_breakdown.csv` — per-achievement success rate by condition × pool (`clean`, `train`, `test`), plus a `_crafter_score` row per (condition, pool) cell.
+- `achievement_breakdown_filtered.pdf`, `achievement_breakdown_faded.pdf`, `achievement_breakdown_all.pdf` — three flavours of the per-achievement grouped bar chart (zero-rate achievements dropped, faded, or shown). Achievements are sorted by treatment-train rate descending.
+- `length_vs_return_overlay.pdf`, `length_vs_return_simple.pdf`, `length_vs_return_faceted.pdf` — three flavours of the episode-level length-vs-return scatter (per-variant means overlaid, episode dots only, or faceted by condition). Colour encodes condition, marker encodes pool.
 - `paired_test_train.txt`, `paired_test_test.txt` — Wilcoxon signed-rank test on per-world differences
+
+
+
+*Note that those steps might be a bit rough around the edges as I had to use a HEX cloud setup and optional tools (like `uv`) when working, which may mean some paths or alike small details may be slightly different for you.*  
 
 ## 1. Environment
 
@@ -82,21 +88,48 @@ Each call writes `sweep_results.jsonl` (one row per episode) and
 
 Make sure there is a `done` file inside the checkpoint folder. This is used internal by dreamer to indicate completeness of the checkpoint. Without it you may see a misleading assertion error claiming the provided path doesn't exist. 
 
+### Optional: random-policy floor
+
+To compute a random-agent reference (used as a floor on `b_vs_t.pdf` and as
+extra rows in `pool_aggregates.csv`), run the same sweep with
+`--random-agent` instead of `--from-checkpoint`. No checkpoint is loaded;
+actions are sampled uniformly from Crafter's discrete action space.
+
+```bash
+python -m embodied.run.eval_texture_sweep \
+  --random-agent \
+  --outdir /logdir/sweep_random \
+  --world-seed 67 --envs 4 \
+  --variant-ids 0-107 --episodes-per-variant 20 \
+  --configs crafter size25m
+mv /logdir/sweep_random/sweep_results.jsonl \
+   /logdir/sweep_random/sweep_results_r.jsonl
+```
+
+The rename is so the file is identifiable by suffix when later passed to
+`run_all.sh`. Use the same `--world-seed` and `--envs` as the trained sweeps
+so worlds are paired across all three runs.
+
 ## 5. Run all analysis scripts
 
 ```bash
 crafter/analysis/run_all.sh \
   /logdir/sweep_baseline/sweep_results.jsonl \
   /logdir/sweep_treatment/sweep_results.jsonl \
-  /logdir/analysis_out
+  /logdir/analysis_out \
+  [/logdir/sweep_random/sweep_results_r.jsonl]
 ```
 
-The wrapper invokes each analysis script in turn and writes the seven
-artefacts listed above into `/logdir/analysis_out/`. It calls plain
-`python <script>.py`, so it uses whatever interpreter is active. Outside
-the container, prefix with `PYTHON="uv run python"` (or
-`uv run bash crafter/analysis/run_all.sh ...`) if the local venv is
-managed with uv.
+The fourth argument is optional. When supplied, the analysis adds the
+`condition=random` rows to `pool_aggregates.csv` and the dashed random-policy
+floor on `b_vs_t.pdf`; when omitted, those steps no-op and the rest of the
+pipeline runs unchanged.
+
+The wrapper invokes each analysis script in turn and writes all artefacts
+listed above into `/logdir/analysis_out/`. It calls plain `python
+<script>.py`, so it uses whatever interpreter is active. Outside the
+container, prefix with `PYTHON="uv run python"` (or `uv run bash
+crafter/analysis/run_all.sh ...`) if the local venv is managed with uv.
 
 If local venv managed by uv use `uv run bash ...` (or prefix with `PYTHON="uv run python"`). 
 
@@ -104,9 +137,12 @@ If local venv managed by uv use `uv run bash ...` (or prefix with `PYTHON="uv ru
 
 The sweep JSONL files are consumed by scripts under `crafter/analysis/`:
 `plot_heatmap.py`, `compute_pool_aggregates.py`, `plot_b_vs_t.py`,
-`achievement_breakdown.py`, `paired_test.py`. Each is runnable
-standalone — see the script's `--help`. To run all five at once on a
-baseline/treatment pair, use the wrapper described in the next section.
+`achievement_breakdown.py`, `plot_achievement_breakdown.py`,
+`plot_length_vs_return.py`, `paired_test.py`. Each is runnable standalone —
+see the script's `--help`. `compute_pool_aggregates.py` and `plot_b_vs_t.py`
+both accept an optional `--random` argument pointing at a random-policy
+sweep JSONL. To run everything at once on a baseline/treatment pair (and
+optionally a random sweep), use the wrapper described above.
 
 # 
 
